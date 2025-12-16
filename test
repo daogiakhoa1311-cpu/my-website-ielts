@@ -1,0 +1,751 @@
+const express = require('express');
+const fs = require('fs');
+const path = require('path');
+const bodyParser = require('body-parser');
+const app = express();
+const dataDir = path.join(__dirname, 'data');
+
+// Middleware
+app.use(bodyParser.json());
+app.use(bodyParser.urlencoded({ extended: true }));
+
+// Static files
+app.use(express.static(path.join(__dirname, 'public')));
+app.use('/assets', express.static(path.join(__dirname, 'assets')));
+
+// Ensure data directory exists
+if (!fs.existsSync(dataDir)) {
+    fs.mkdirSync(dataDir);
+}
+
+// Load answer keys
+const answers = require('./answers.json');
+
+// Start exam: create new student data file
+app.post('/api/start', (req, res) => {
+    const sid = req.body.sid;
+    const name = req.body.name;
+    const filePath = path.join(dataDir, sid + '.json');
+    const studentData = { sid, name };
+    fs.writeFileSync(filePath, JSON.stringify(studentData, null, 2));
+    res.json({ success: true });
+});
+
+// Submit Listening answers
+app.post('/api/submitListening', (req, res) => {
+    const sid = req.body.sid;
+    const filePath = path.join(dataDir, sid + '.json');
+    let data = {};
+    if (fs.existsSync(filePath)) {
+        data = JSON.parse(fs.readFileSync(filePath));
+    } else {
+        data = { sid };
+    }
+    let score = 0;
+    const userAnswers = {};
+    for (let i = 1; i <= 10; i++) {
+        const key = 'listening' + i;
+        const ans = req.body[key];
+        userAnswers[i] = ans;
+        if (ans && answers.listening[i] && ans.toUpperCase() === answers.listening[i].toUpperCase()) {
+            score++;
+        }
+    }
+    data.listeningAnswers = userAnswers;
+    data.listeningScore = score;
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+});
+
+// Submit Reading answers
+app.post('/api/submitReading', (req, res) => {
+    const sid = req.body.sid;
+    const filePath = path.join(dataDir, sid + '.json');
+    let data = {};
+    if (fs.existsSync(filePath)) {
+        data = JSON.parse(fs.readFileSync(filePath));
+    } else {
+        data = { sid };
+    }
+    let score = 0;
+    const userAnswers = {};
+    for (let i = 1; i <= 10; i++) {
+        const key = 'reading' + i;
+        const ans = req.body[key];
+        userAnswers[i] = ans;
+        if (ans && answers.reading[i] && ans === answers.reading[i]) {
+            score++;
+        }
+    }
+    data.readingAnswers = userAnswers;
+    data.readingScore = score;
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+});
+
+// Submit Writing Task 1
+app.post('/api/submitWriting1', (req, res) => {
+    const sid = req.body.sid;
+    const essay = req.body.writing1;
+    const filePath = path.join(dataDir, sid + '.json');
+    let data = {};
+    if (fs.existsSync(filePath)) {
+        data = JSON.parse(fs.readFileSync(filePath));
+    } else {
+        data = { sid };
+    }
+    data.writing1 = essay;
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+});
+
+// Submit Writing Task 2
+app.post('/api/submitWriting2', (req, res) => {
+    const sid = req.body.sid;
+    const essay = req.body.writing2;
+    const filePath = path.join(dataDir, sid + '.json');
+    let data = {};
+    if (fs.existsSync(filePath)) {
+        data = JSON.parse(fs.readFileSync(filePath));
+    } else {
+        data = { sid };
+    }
+    data.writing2 = essay;
+    fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+    res.json({ success: true });
+});
+
+// Submit Writing scores (teacher input)
+app.post('/api/scoreWriting', (req, res) => {
+    const sid = req.body.sid;
+    const filePath = path.join(dataDir, sid + '.json');
+    if (fs.existsSync(filePath)) {
+        let data = JSON.parse(fs.readFileSync(filePath));
+        data.writing1Score = {
+            TR: req.body.writing1_TR,
+            CC: req.body.writing1_CC,
+            LR: req.body.writing1_LR,
+            GR: req.body.writing1_GR
+        };
+        data.writing2Score = {
+            TR: req.body.writing2_TR,
+            CC: req.body.writing2_CC,
+            LR: req.body.writing2_LR,
+            GR: req.body.writing2_GR
+        };
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Student not found' });
+    }
+});
+
+// Submit Speaking scores (teacher input)
+app.post('/api/scoreSpeaking', (req, res) => {
+    const sid = req.body.sid;
+    const filePath = path.join(dataDir, sid + '.json');
+    if (fs.existsSync(filePath)) {
+        let data = JSON.parse(fs.readFileSync(filePath));
+        data.speakingScore = {
+            FL: req.body.speaking_FL,
+            LX: req.body.speaking_LX,
+            PR: req.body.speaking_PR,
+            GR: req.body.speaking_GR
+        };
+        fs.writeFileSync(filePath, JSON.stringify(data, null, 2));
+        res.json({ success: true });
+    } else {
+        res.status(404).json({ error: 'Student not found' });
+    }
+});
+
+// Get Result
+app.get('/api/result', (req, res) => {
+    const sid = req.query.sid;
+    const filePath = path.join(dataDir, sid + '.json');
+    if (fs.existsSync(filePath)) {
+        const data = JSON.parse(fs.readFileSync(filePath));
+        res.json(data);
+    } else {
+        res.status(404).json({ error: 'Student not found' });
+    }
+});
+
+// Start server
+const PORT = 3000;
+app.listen(PORT, () => {
+    console.log(`Server running on http://localhost:${PORT}`);
+});
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Trang đăng nhập - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Đăng nhập</h1>
+    <form id="loginForm">
+        <label>Mã SBD: <input type="text" id="sid" name="sid" value="001" required></label><br>
+        <label>Họ tên: <input type="text" id="name" name="name" required></label><br>
+        <button type="submit">Bắt đầu</button>
+    </form>
+    <script>
+        const form = document.getElementById('loginForm');
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            const sid = document.getElementById('sid').value;
+            const name = document.getElementById('name').value;
+            fetch('/api/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ sid: sid, name: name })
+            }).then(res => {
+                if (res.ok) {
+                    localStorage.setItem('sid', sid);
+                    localStorage.setItem('name', name);
+                    window.location.href = 'listening.html';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Listening - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Listening</h1>
+    <p>Audio sẽ phát tự động. Không được dừng/tua.</p>
+    <audio id="audio" autoplay>
+        <source src="../assets/test1.mp3" type="audio/mpeg">
+        Trình duyệt không hỗ trợ audio.
+    </audio>
+    <form id="listeningForm">
+        <!-- Answers for 10 questions -->
+        <p>Câu 1: 
+            <label><input type="radio" name="listening1" value="A" required> A</label>
+            <label><input type="radio" name="listening1" value="B"> B</label>
+            <label><input type="radio" name="listening1" value="C"> C</label>
+            <label><input type="radio" name="listening1" value="D"> D</label>
+        </p>
+        <p>Câu 2: 
+            <label><input type="radio" name="listening2" value="A" required> A</label>
+            <label><input type="radio" name="listening2" value="B"> B</label>
+            <label><input type="radio" name="listening2" value="C"> C</label>
+            <label><input type="radio" name="listening2" value="D"> D</label>
+        </p>
+        <p>Câu 3: 
+            <label><input type="radio" name="listening3" value="A" required> A</label>
+            <label><input type="radio" name="listening3" value="B"> B</label>
+            <label><input type="radio" name="listening3" value="C"> C</label>
+            <label><input type="radio" name="listening3" value="D"> D</label>
+        </p>
+        <p>Câu 4: 
+            <label><input type="radio" name="listening4" value="A" required> A</label>
+            <label><input type="radio" name="listening4" value="B"> B</label>
+            <label><input type="radio" name="listening4" value="C"> C</label>
+            <label><input type="radio" name="listening4" value="D"> D</label>
+        </p>
+        <p>Câu 5: 
+            <label><input type="radio" name="listening5" value="A" required> A</label>
+            <label><input type="radio" name="listening5" value="B"> B</label>
+            <label><input type="radio" name="listening5" value="C"> C</label>
+            <label><input type="radio" name="listening5" value="D"> D</label>
+        </p>
+        <p>Câu 6: 
+            <label><input type="radio" name="listening6" value="A" required> A</label>
+            <label><input type="radio" name="listening6" value="B"> B</label>
+            <label><input type="radio" name="listening6" value="C"> C</label>
+            <label><input type="radio" name="listening6" value="D"> D</label>
+        </p>
+        <p>Câu 7: 
+            <label><input type="radio" name="listening7" value="A" required> A</label>
+            <label><input type="radio" name="listening7" value="B"> B</label>
+            <label><input type="radio" name="listening7" value="C"> C</label>
+            <label><input type="radio" name="listening7" value="D"> D</label>
+        </p>
+        <p>Câu 8: 
+            <label><input type="radio" name="listening8" value="A" required> A</label>
+            <label><input type="radio" name="listening8" value="B"> B</label>
+            <label><input type="radio" name="listening8" value="C"> C</label>
+            <label><input type="radio" name="listening8" value="D"> D</label>
+        </p>
+        <p>Câu 9: 
+            <label><input type="radio" name="listening9" value="A" required> A</label>
+            <label><input type="radio" name="listening9" value="B"> B</label>
+            <label><input type="radio" name="listening9" value="C"> C</label>
+            <label><input type="radio" name="listening9" value="D"> D</label>
+        </p>
+        <p>Câu 10: 
+            <label><input type="radio" name="listening10" value="A" required> A</label>
+            <label><input type="radio" name="listening10" value="B"> B</label>
+            <label><input type="radio" name="listening10" value="C"> C</label>
+            <label><input type="radio" name="listening10" value="D"> D</label>
+        </p>
+        <input type="hidden" id="sid" name="sid" value="">
+        <button type="submit">Nộp bài Listening</button>
+    </form>
+    <script>
+        // Set SID from localStorage
+        document.getElementById('sid').value = localStorage.getItem('sid') || '';
+        // On audio end, auto submit form
+        document.getElementById('audio').addEventListener('ended', function() {
+            submitListening();
+        });
+        // Submit Listening answers via AJAX
+        document.getElementById('listeningForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitListening();
+        });
+        function submitListening() {
+            const form = document.getElementById('listeningForm');
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/submitListening', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (res.ok) {
+                    window.location.href = 'reading.html';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Reading - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Reading</h1>
+    <p>Thời gian: 60 phút. Bài đọc sẽ chuyển tự động sang Writing sau khi hết giờ.</p>
+    <div id="timer">60:00</div>
+    <form id="readingForm">
+        <p>Câu 1: 
+            <label><input type="radio" name="reading1" value="Đúng" required> Đúng</label>
+            <label><input type="radio" name="reading1" value="Sai"> Sai</label>
+            <label><input type="radio" name="reading1" value="Không đề cập"> Không đề cập</label>
+        </p>
+        <p>Câu 2: 
+            <label><input type="radio" name="reading2" value="Đúng" required> Đúng</label>
+            <label><input type="radio" name="reading2" value="Sai"> Sai</label>
+            <label><input type="radio" name="reading2" value="Không đề cập"> Không đề cập</label>
+        </p>
+        <p>Câu 3: 
+            <label><input type="radio" name="reading3" value="Đúng" required> Đúng</label>
+            <label><input type="radio" name="reading3" value="Sai"> Sai</label>
+            <label><input type="radio" name="reading3" value="Không đề cập"> Không đề cập</label>
+        </p>
+        <p>Câu 4: 
+            <label><input type="radio" name="reading4" value="Đúng" required> Đúng</label>
+            <label><input type="radio" name="reading4" value="Sai"> Sai</label>
+            <label><input type="radio" name="reading4" value="Không đề cập"> Không đề cập</label>
+        </p>
+        <p>Câu 5: 
+            <label><input type="radio" name="reading5" value="Đúng" required> Đúng</label>
+            <label><input type="radio" name="reading5" value="Sai"> Sai</label>
+            <label><input type="radio" name="reading5" value="Không đề cập"> Không đề cập</label>
+        </p>
+        <p>Câu 6: 
+            <label><input type="radio" name="reading6" value="A" required> A</label>
+            <label><input type="radio" name="reading6" value="B"> B</label>
+            <label><input type="radio" name="reading6" value="C"> C</label>
+            <label><input type="radio" name="reading6" value="D"> D</label>
+        </p>
+        <p>Câu 7: 
+            <label><input type="radio" name="reading7" value="A" required> A</label>
+            <label><input type="radio" name="reading7" value="B"> B</label>
+            <label><input type="radio" name="reading7" value="C"> C</label>
+            <label><input type="radio" name="reading7" value="D"> D</label>
+        </p>
+        <p>Câu 8: 
+            <label><input type="radio" name="reading8" value="A" required> A</label>
+            <label><input type="radio" name="reading8" value="B"> B</label>
+            <label><input type="radio" name="reading8" value="C"> C</label>
+            <label><input type="radio" name="reading8" value="D"> D</label>
+        </p>
+        <p>Câu 9: 
+            <label><input type="radio" name="reading9" value="A" required> A</label>
+            <label><input type="radio" name="reading9" value="B"> B</label>
+            <label><input type="radio" name="reading9" value="C"> C</label>
+            <label><input type="radio" name="reading9" value="D"> D</label>
+        </p>
+        <p>Câu 10: 
+            <label><input type="radio" name="reading10" value="A" required> A</label>
+            <label><input type="radio" name="reading10" value="B"> B</label>
+            <label><input type="radio" name="reading10" value="C"> C</label>
+            <label><input type="radio" name="reading10" value="D"> D</label>
+        </p>
+        <input type="hidden" id="sid" name="sid" value="">
+        <button type="submit">Nộp bài Reading</button>
+    </form>
+    <script>
+        document.getElementById('sid').value = localStorage.getItem('sid') || '';
+        // Countdown timer
+        let timeLeft = 60 * 60;
+        const timerElem = document.getElementById('timer');
+        const interval = setInterval(function() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElem.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                submitReading();
+            }
+            timeLeft--;
+        }, 1000);
+        // Submit Reading answers via AJAX
+        document.getElementById('readingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitReading();
+        });
+        function submitReading() {
+            const form = document.getElementById('readingForm');
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/submitReading', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (res.ok) {
+                    window.location.href = 'writing1.html';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Writing Task 1 - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Writing Task 1</h1>
+    <p>Dựa vào biểu đồ dưới đây, viết một bài luận khoảng 150 từ.</p>
+    <img src="../assets/697963cc.png" alt="Biểu đồ Task 1">
+    <div id="timer">60:00</div>
+    <form id="writing1Form">
+        <textarea name="writing1" id="writing1" rows="10" cols="80" placeholder="Nhập bài viết ở đây..." required></textarea><br>
+        <div>Số từ: <span id="wordCount">0</span></div>
+        <input type="hidden" id="sid" name="sid" value="">
+        <button type="submit">Nộp bài và chuyển sang Task 2</button>
+    </form>
+    <script>
+        // Word count
+        const textarea = document.getElementById('writing1');
+        const wordCountSpan = document.getElementById('wordCount');
+        textarea.addEventListener('input', function() {
+            const words = textarea.value.trim().split(/\s+/).filter(w => w.length > 0);
+            wordCountSpan.textContent = words.length;
+        });
+        // Set SID
+        document.getElementById('sid').value = localStorage.getItem('sid') || '';
+        // Countdown timer
+        let timeLeft = 60 * 60;
+        const timerElem = document.getElementById('timer');
+        const interval = setInterval(function() {
+            const minutes = Math.floor(timeLeft / 60);
+            const seconds = timeLeft % 60;
+            timerElem.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            if (timeLeft <= 0) {
+                clearInterval(interval);
+                submitWriting1();
+            }
+            timeLeft--;
+        }, 1000);
+        // Submit Task 1 via AJAX
+        document.getElementById('writing1Form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitWriting1();
+        });
+        function submitWriting1() {
+            const form = document.getElementById('writing1Form');
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/submitWriting1', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (res.ok) {
+                    window.location.href = 'writing2.html';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Writing Task 2 - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Writing Task 2</h1>
+    <p>Đề bài: Một số người cho rằng việc học ngoại ngữ nên bắt đầu từ khi trẻ còn nhỏ, trong khi những người khác cho rằng nên đợi cho đến khi trẻ lớn hơn. Ý kiến của bạn là gì?</p>
+    <div id="timer">60:00</div>
+    <form id="writing2Form">
+        <textarea name="writing2" id="writing2" rows="10" cols="80" placeholder="Nhập bài viết ở đây..." required></textarea><br>
+        <div>Số từ: <span id="wordCount2">0</span></div>
+        <input type="hidden" id="sid" name="sid" value="">
+        <button type="submit">Nộp bài và kết thúc</button>
+    </form>
+    <script>
+        // Word count
+        const textarea2 = document.getElementById('writing2');
+        const wordCountSpan2 = document.getElementById('wordCount2');
+        textarea2.addEventListener('input', function() {
+            const words = textarea2.value.trim().split(/\s+/).filter(w => w.length > 0);
+            wordCountSpan2.textContent = words.length;
+        });
+        // Set SID
+        document.getElementById('sid').value = localStorage.getItem('sid') || '';
+        // Countdown timer
+        let timeLeft2 = 60 * 60;
+        const timerElem2 = document.getElementById('timer');
+        const interval2 = setInterval(function() {
+            const minutes = Math.floor(timeLeft2 / 60);
+            const seconds = timeLeft2 % 60;
+            timerElem2.textContent = minutes.toString().padStart(2, '0') + ':' + seconds.toString().padStart(2, '0');
+            if (timeLeft2 <= 0) {
+                clearInterval(interval2);
+                submitWriting2();
+            }
+            timeLeft2--;
+        }, 1000);
+        // Submit Task 2 via AJAX
+        document.getElementById('writing2Form').addEventListener('submit', function(e) {
+            e.preventDefault();
+            submitWriting2();
+        });
+        function submitWriting2() {
+            const form = document.getElementById('writing2Form');
+            const formData = new FormData(form);
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/submitWriting2', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => {
+                if (res.ok) {
+                    window.location.href = 'final.html';
+                }
+            });
+        }
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Kết quả - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Kết thúc bài thi</h1>
+    <p>Nhập mã để xem kết quả:</p>
+    <form id="codeForm">
+        <input type="text" id="code" maxlength="6" placeholder="Mã 6 chữ số" required>
+        <button type="submit">Xác nhận</button>
+    </form>
+    <div id="result"></div>
+    <script>
+        document.getElementById('codeForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const code = document.getElementById('code').value;
+            if (code === '888266') {
+                const sid = localStorage.getItem('sid') || '';
+                fetch('/api/result?sid=' + sid)
+                    .then(res => res.json())
+                    .then(data => {
+                        if (data.error) {
+                            document.getElementById('result').textContent = 'Không tìm thấy dữ liệu.';
+                        } else {
+                            let html = '<h2>Kết quả của ' + data.name + ' (SBD: ' + data.sid + ')</h2>';
+                            html += '<p>Listening: ' + (data.listeningScore || 0) + '/10</p>';
+                            html += '<p>Reading: ' + (data.readingScore || 0) + '/10</p>';
+                            if (data.writing1Score) {
+                                html += '<h3>Writing Task 1</h3>';
+                                html += '<p>Task Achievement (TR): ' + data.writing1Score.TR + '</p>';
+                                html += '<p>Coherence & Cohesion (CC): ' + data.writing1Score.CC + '</p>';
+                                html += '<p>Lexical Resource (LR): ' + data.writing1Score.LR + '</p>';
+                                html += '<p>Grammatical Range (GR): ' + data.writing1Score.GR + '</p>';
+                            }
+                            if (data.writing2Score) {
+                                html += '<h3>Writing Task 2</h3>';
+                                html += '<p>Task Response (TR): ' + data.writing2Score.TR + '</p>';
+                                html += '<p>Coherence & Cohesion (CC): ' + data.writing2Score.CC + '</p>';
+                                html += '<p>Lexical Resource (LR): ' + data.writing2Score.LR + '</p>';
+                                html += '<p>Grammatical Range (GR): ' + data.writing2Score.GR + '</p>';
+                            }
+                            if (data.speakingScore) {
+                                html += '<h3>Speaking</h3>';
+                                html += '<p>Fluency (FL): ' + data.speakingScore.FL + '</p>';
+                                html += '<p>Lexical (LX): ' + data.speakingScore.LX + '</p>';
+                                html += '<p>Pronunciation (PR): ' + data.speakingScore.PR + '</p>';
+                                html += '<p>Grammar (GR): ' + data.speakingScore.GR + '</p>';
+                            }
+                            document.getElementById('result').innerHTML = html;
+                        }
+                    });
+            } else {
+                alert('Mã không đúng.');
+            }
+        });
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chấm Writing - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Chấm điểm Writing</h1>
+    <form id="scoreWritingForm">
+        <label>SBD: <input type="text" id="sid" name="sid" required></label><br>
+        <h3>Writing Task 1</h3>
+        <label>Task Achievement (TR): <input type="number" name="writing1_TR" min="0" max="9" required></label><br>
+        <label>Coherence & Cohesion (CC): <input type="number" name="writing1_CC" min="0" max="9" required></label><br>
+        <label>Lexical Resource (LR): <input type="number" name="writing1_LR" min="0" max="9" required></label><br>
+        <label>Grammatical Range (GR): <input type="number" name="writing1_GR" min="0" max="9" required></label><br>
+        <h3>Writing Task 2</h3>
+        <label>Task Response (TR): <input type="number" name="writing2_TR" min="0" max="9" required></label><br>
+        <label>Coherence & Cohesion (CC): <input type="number" name="writing2_CC" min="0" max="9" required></label><br>
+        <label>Lexical Resource (LR): <input type="number" name="writing2_LR" min="0" max="9" required></label><br>
+        <label>Grammatical Range (GR): <input type="number" name="writing2_GR" min="0" max="9" required></label><br>
+        <button type="submit">Lưu điểm</button>
+    </form>
+    <div id="message"></div>
+    <script>
+        document.getElementById('scoreWritingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(document.getElementById('scoreWritingForm'));
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/scoreWriting', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => res.json())
+              .then(result => {
+                if (result.success) {
+                    document.getElementById('message').textContent = 'Đã lưu điểm Writing.';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+    <meta charset="UTF-8">
+    <title>Chấm Speaking - IELTS Mock Test</title>
+    <link rel="stylesheet" href="../assets/style.css">
+</head>
+<body>
+    <h1>Chấm điểm Speaking</h1>
+    <form id="scoreSpeakingForm">
+        <label>SBD: <input type="text" id="sid" name="sid" required></label><br>
+        <label>Fluency (FL): <input type="number" name="speaking_FL" min="0" max="9" required></label><br>
+        <label>Lexical (LX): <input type="number" name="speaking_LX" min="0" max="9" required></label><br>
+        <label>Pronunciation (PR): <input type="number" name="speaking_PR" min="0" max="9" required></label><br>
+        <label>Grammar (GR): <input type="number" name="speaking_GR" min="0" max="9" required></label><br>
+        <button type="submit">Lưu điểm</button>
+    </form>
+    <div id="message"></div>
+    <script>
+        document.getElementById('scoreSpeakingForm').addEventListener('submit', function(e) {
+            e.preventDefault();
+            const formData = new FormData(document.getElementById('scoreSpeakingForm'));
+            const data = {};
+            formData.forEach((value, key) => data[key] = value);
+            fetch('/api/scoreSpeaking', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(data)
+            }).then(res => res.json())
+              .then(result => {
+                if (result.success) {
+                    document.getElementById('message').textContent = 'Đã lưu điểm Speaking.';
+                }
+            });
+        });
+    </script>
+</body>
+</html>
+body {
+    font-family: Arial, sans-serif;
+    margin: 20px;
+}
+h1 {
+    color: #333;
+}
+label {
+    display: block;
+    margin: 5px 0;
+}
+input[type="text"], input[type="number"], textarea {
+    width: 100%;
+    box-sizing: border-box;
+    margin: 5px 0;
+}
+button {
+    margin-top: 10px;
+    padding: 5px 10px;
+}
+#timer {
+    font-size: 1.5em;
+    font-weight: bold;
+    margin: 10px 0;
+}
+{
+  "listening": {
+    "1": "A",
+    "2": "B",
+    "3": "C",
+    "4": "D",
+    "5": "B",
+    "6": "A",
+    "7": "C",
+    "8": "D",
+    "9": "B",
+    "10": "A"
+  },
+  "reading": {
+    "1": "Đúng",
+    "2": "Sai",
+    "3": "Không đề cập",
+    "4": "Đúng",
+    "5": "Sai",
+    "6": "C",
+    "7": "D",
+    "8": "A",
+    "9": "B",
+    "10": "A"
+  }
+}
